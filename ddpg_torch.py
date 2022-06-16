@@ -103,7 +103,7 @@ class CriticNetwork(nn.Module):
         self.optimizer = optim.Adam(self.parameters(), lr=beta)
 
         self.device = T.device("cuda:0" if T.cuda.is_available() else "cpu")
-        self.device = T.device('cpu')
+        # self.device = T.device('cpu')
         self.to(self.device)
 
 
@@ -120,11 +120,14 @@ class CriticNetwork(nn.Module):
 
     def save_checkpoint(self):
         print('Saving checkpoint...')
+        if not os.path.exists(self.chkpt_dir):
+            os.makedirs(self.chkpt_dir)
         T.save(self.state_dict(), self.checkpoint_file)
 
     def load_checkpoint(self):
         print('Loading checkpoint...')
         if os.path.exists(self.checkpoint_file):
+            print('Checkpoint found!')
             self.load_state_dict(T.load(self.checkpoint_file))
         else:
             print('No checkpoint found...')
@@ -163,7 +166,7 @@ class ActorNetwork(nn.Module):
         self.optimizer = optim.Adam(self.parameters(), lr=alpha)
 
         self.device = T.device("cuda:0" if T.cuda.is_available() else "cpu")
-        self.device = T.device('cpu')
+        # self.device = T.device('cpu')
         self.to(self.device)
 
     def forward(self, state):
@@ -176,6 +179,8 @@ class ActorNetwork(nn.Module):
 
     def save_checkpoint(self):
         print('Saving checkpoint...')
+        if not os.path.exists(self.chkpt_dir):
+            os.makedirs(self.chkpt_dir)
         T.save(self.state_dict(), self.checkpoint_file)
 
     def load_checkpoint(self):
@@ -285,6 +290,12 @@ class Agent(object):
     def save_models(self):
         self.actor.save_checkpoint()
         self.critic.save_checkpoint()
+        self.actor_target.save_checkpoint()
+        self.critic_target.save_checkpoint()
+
+    def load_models(self):
+        self.actor.load_checkpoint()
+        self.critic.load_checkpoint()
         self.actor_target.load_checkpoint()
         self.critic_target.load_checkpoint()
 

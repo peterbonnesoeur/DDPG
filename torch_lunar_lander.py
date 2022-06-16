@@ -1,13 +1,14 @@
 from ddpg_torch import Agent
 import gym
 import numpy as np
-from utils import plotLearning
+#from utils import plotLearning
 
 env = gym.make('LunarLanderContinuous-v2')
 
 agent = Agent(alpha=0.00025, beta=0.00025, input_shape=[8], tau=0.01, env=env,
               batch_size = 64, layer1_size=400, layer2_size=300, n_actions=2)
 
+agent.load_models()
 
 np.random.seed(0)
 
