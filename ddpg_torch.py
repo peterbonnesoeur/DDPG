@@ -6,7 +6,7 @@ import re
 from turtle import forward
 import torch as T
 import torch.nn as nn
-import torch.functional as F
+import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
 
@@ -75,7 +75,7 @@ class CriticNetwork(nn.Module):
         self.beta = beta
         self.fc1_dims = fc1_dims
         self.fc2_dims = fc2_dims
-        self.checkpoint_file = os.path.join(self.chkpt_dir, self.name + '_ddpg.pth')
+        self.checkpoint_file = os.path.join(self.chkpt_dir, self.name + '_ddpg')
 
         self.fc1 = nn.Linear(*self.input_shape, self.fc1_dims)
 
@@ -84,13 +84,13 @@ class CriticNetwork(nn.Module):
         T.nn.init.uniform_(self.fc1.weight.data, -f1, f1)
         T.nn.init.uniform_(self.fc1.bias.data, -f1, f1)
 
-        self.bn1 = nn.BatchNorm1d(self.fc1_dims)
+        self.bn1 = nn.LayerNorm(self.fc1_dims)
 
         self.fc2 = nn.Linear(self.fc1_dims, self.fc2_dims, init)
         f2 = 1 / np.sqrt(self.fc2.weight.data.size()[0])
         T.nn.init.uniform_(self.fc2.weight.data, -f2, f2)
         T.nn.init.uniform_(self.fc2.bias.data, -f2, f2)
-        self.bn2 = nn.BatchNorm1d(self.fc2_dims)
+        self.bn2 = nn.LayerNorm(self.fc2_dims)
 
         self.action_value = nn.Linear(self.n_actions, self.fc2_dims)
 
@@ -103,15 +103,16 @@ class CriticNetwork(nn.Module):
         self.optimizer = optim.Adam(self.parameters(), lr=beta)
 
         self.device = T.device("cuda:0" if T.cuda.is_available() else "cpu")
+        self.device = T.device('cpu')
         self.to(self.device)
 
 
     def forward(self, state, action):
-        x_1 = T.nn.ReLU(self.bn1(self.fc1(state)))
+        x_1 = F.relu(self.bn1(self.fc1(state)))
         x_2 = self.bn2(self.fc2(x_1))
 
-        action_value = T.nn.ReLU(self.action_value(action))
-        state_action_value = T.nn.ReLU(T.add(x_2, action_value))
+        action_value = F.relu(self.action_value(action))
+        state_action_value = F.relu(T.add(x_2, action_value))
 
         state_action_value = self.q(state_action_value)
 
@@ -123,8 +124,10 @@ class CriticNetwork(nn.Module):
 
     def load_checkpoint(self):
         print('Loading checkpoint...')
-        self.load_state_dict(T.load(self.checkpoint_file))
-
+        if os.path.exists(self.checkpoint_file):
+            self.load_state_dict(T.load(self.checkpoint_file))
+        else:
+            print('No checkpoint found...')
 
 class ActorNetwork(nn.Module):
     def __init__(self, alpha, input_shape, n_actions, name, chkpt_dir= 'tmp/ddpg', fc1_dims=400, fc2_dims=300):
@@ -135,20 +138,20 @@ class ActorNetwork(nn.Module):
         self.chkpt_dir = chkpt_dir
         self.fc1_dims = fc1_dims
         self.fc2_dims = fc2_dims
-        self.checkpoint_file = os.path.join(self.chkpt_dir, self.name + '_ddpg_actor.pth')
+        self.checkpoint_file = os.path.join(self.chkpt_dir, self.name + '_ddpg_actor')
 
         self.fc1 = nn.Linear(*self.input_shape, self.fc1_dims)
         f1 = 1 / np.sqrt(self.fc1.weight.data.size()[0])
         T.nn.init.uniform_(self.fc1.weight.data, -f1, f1)
         T.nn.init.uniform_(self.fc1.bias.data, -f1, f1)
 
-        self.bn1 = nn.BatchNorm1d(self.fc1_dims)
+        self.bn1 = nn.LayerNorm(self.fc1_dims)
 
         self.fc2 = nn.Linear(self.fc1_dims, self.fc2_dims, init)
         f2 = 1 / np.sqrt(self.fc2.weight.data.size()[0])
         T.nn.init.uniform_(self.fc2.weight.data, -f2, f2)
         T.nn.init.uniform_(self.fc2.bias.data, -f2, f2)
-        self.bn2 = nn.BatchNorm1d(self.fc2_dims)
+        self.bn2 = nn.LayerNorm(self.fc2_dims)
 
 
         f3 = 0.003
@@ -160,11 +163,12 @@ class ActorNetwork(nn.Module):
         self.optimizer = optim.Adam(self.parameters(), lr=alpha)
 
         self.device = T.device("cuda:0" if T.cuda.is_available() else "cpu")
+        self.device = T.device('cpu')
         self.to(self.device)
 
     def forward(self, state):
-        x_1 = T.nn.ReLU(self.bn1(self.fc1(state)))
-        x_2 = T.nn.ReLU(self.bn2(self.fc2(x_1)))
+        x_1 = F.relu(self.bn1(self.fc1(state)))
+        x_2 = F.relu(self.bn2(self.fc2(x_1)))
 
         stiring = T.tanh(self.mu(x_2))
 
@@ -176,8 +180,10 @@ class ActorNetwork(nn.Module):
 
     def load_checkpoint(self):
         print('Loading checkpoint...')
-        self.load_state_dict(T.load(self.checkpoint_file))
-
+        if (os.path.exists(self.checkpoint_file)):
+            self.load_state_dict(T.load(self.checkpoint_file))
+        else:
+            print('No checkpoint found...')
 
 class Agent(object):
     def __init__(self, alpha, beta, input_shape, tau, env, gamma = 0.99, n_actions = 2, max_size = 100000, layer1_size = 400, layer2_size = 300, batch_size = 32):
@@ -246,7 +252,7 @@ class Agent(object):
 
 
             self.critic.train()
-            self.critic_optim.zero_grad()
+            self.critic.optimizer.zero_grad()
             critic_loss = F.mse_loss(critic_value, target)
             critic_loss.backward()
             self.critic.optimizer.step()
@@ -265,18 +271,6 @@ class Agent(object):
     def update_network_parameters(self, tau = None):
         if tau is None:
             tau = self.tau
-
-        # actor_parameters = self.actor.named_parameters()
-        # actor_target_parameters = self.actor_target.named_parameters()
-        # critic_parameters = self.critic.named_parameters()
-        # critic_target_parameters = self.critic_target.named_parameters()
-
-        # actor_state_dict = dict(actor_parameters)
-        # actor_target_state_dict = dict(actor_target_parameters)
-        # critic_state_dict = dict(critic_parameters)
-        # critic_target_state_dict = dict(critic_target_parameters)
-
-
 
         for target_param, param in zip(self.actor_target.parameters(), self.actor.parameters()):
             target_param.data.copy_(

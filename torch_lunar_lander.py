@@ -35,5 +35,3 @@ for i in range(1000):
 
 
     filename = 'lunar-laner.png'
-
-    plotLearning(score_history, filename, window = 100)
