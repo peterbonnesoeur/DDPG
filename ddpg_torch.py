@@ -25,7 +25,7 @@ class OUActionNoise(object):
 
         self.x_prev = x
         return x
-    
+
     def reset(self):
         self.x_prev = self.x0 if self.x0 is not None else np.zeros_like(self.mu)
 
@@ -36,7 +36,7 @@ class ReplayBuffer(object):
         self.mem_ctr = 0
         self.state_memory = np.zeros((self.mem_size, *input_shape))
         self.new_state_memory = np.zeros((self.mem_size, *input_shape))
-        self.action_memory = np.zeros(self.mem_size, n_actions)
+        self.action_memory = np.zeros((self.mem_size, n_actions))
         self.reward_memory = np.zeros(self.mem_size)
         self.term_memory = np.zeros(self.mem_size, dtype=np.int)
 
@@ -77,7 +77,7 @@ class CriticNetwork(nn.Module):
         self.fc2_dims = fc2_dims
         self.checkpoint_file = os.path.join(self.chkpt_dir, self.name + '_ddpg.pth')
 
-        self.fc1 = nn.Linear(*self.input_dims, self.fc1_dims)
+        self.fc1 = nn.Linear(*self.input_shape, self.fc1_dims)
 
         print(*self.input_shape, self.fc1_dims, self.fc1.weight.data.size()[0])
         f1 = 1 / np.sqrt(self.fc1.weight.data.size()[0]) # equal to 1/sqrt(self.input_shape[0] * self.fc1_dims)
@@ -101,7 +101,7 @@ class CriticNetwork(nn.Module):
         T.nn.init.uniform_(self.q.bias.data, -f3, f3)
 
         self.optimizer = optim.Adam(self.parameters(), lr=beta)
-        
+
         self.device = T.device("cuda:0" if T.cuda.is_available() else "cpu")
         self.to(self.device)
 
@@ -137,7 +137,7 @@ class ActorNetwork(nn.Module):
         self.fc2_dims = fc2_dims
         self.checkpoint_file = os.path.join(self.chkpt_dir, self.name + '_ddpg_actor.pth')
 
-        self.fc1 = nn.Linear(*self.input_dims, self.fc1_dims)
+        self.fc1 = nn.Linear(*self.input_shape, self.fc1_dims)
         f1 = 1 / np.sqrt(self.fc1.weight.data.size()[0])
         T.nn.init.uniform_(self.fc1.weight.data, -f1, f1)
         T.nn.init.uniform_(self.fc1.bias.data, -f1, f1)
@@ -178,7 +178,7 @@ class ActorNetwork(nn.Module):
         print('Loading checkpoint...')
         self.load_state_dict(T.load(self.checkpoint_file))
 
-    
+
 class Agent(object):
     def __init__(self, alpha, beta, input_shape, tau, env, gamma = 0.99, n_actions = 2, max_size = 100000, layer1_size = 400, layer2_size = 300, batch_size = 32):
         self.gamma = gamma
@@ -240,7 +240,7 @@ class Agent(object):
 
             for j in range(self.batch_size):
                 target.append(reward[j] + self.gamma * critic_value_[j] * (1 - done[j]))
-            
+
             target = T.tensor(target, dtype=T.float).to(self.critic.device)
             target = target.view(-1, 1)
 
@@ -265,7 +265,7 @@ class Agent(object):
     def update_network_parameters(self, tau = None):
         if tau is None:
             tau = self.tau
-        
+
         # actor_parameters = self.actor.named_parameters()
         # actor_target_parameters = self.actor_target.named_parameters()
         # critic_parameters = self.critic.named_parameters()
@@ -286,7 +286,7 @@ class Agent(object):
         for target_param, param in zip(self.critic_target.parameters(), self.critic.parameters()):
             target_param.data.copy_(
                  target_param.data * (1 - self.tau) + param.data * self.tau
-            )  
+            )
 
     def save_models(self):
         self.actor.save_checkpoint()
